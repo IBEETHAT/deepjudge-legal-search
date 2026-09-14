@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#111827" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="DeepJudge" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>DeepJudge Legal Search</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="hero">
+        <p class="eyebrow">DeepJudge</p>
+        <h1>Legal search on your iPhone</h1>
+        <p class="subtitle">Open this app in Safari, then use Share → Add to Home Screen to install it like an app.</p>
+      </header>
+
+      <section class="panel">
+        <h2>Search firm knowledge</h2>
+        <form id="search-form" class="stack">
+          <label>
+            <span>Query</span>
+            <textarea name="query" rows="3" placeholder="Indemnification clause precedent" required></textarea>
+          </label>
+          <div class="grid">
+            <label>
+              <span>Matter ID</span>
+              <input name="matter_id" placeholder="M-10294" />
+            </label>
+            <label>
+              <span>Top results</span>
+              <input name="top_k" type="number" min="1" max="20" value="5" />
+            </label>
+          </div>
+          <button type="submit">Run search</button>
+        </form>
+        <pre id="search-result" class="result" aria-live="polite"></pre>
+      </section>
+
+      <section class="panel">
+        <h2>Run legal analysis</h2>
+        <form id="analysis-form" class="stack">
+          <label>
+            <span>Analysis type</span>
+            <select name="analysis_type">
+              <option value="grey_area">Grey area analysis</option>
+              <option value="risk_assessment">Risk assessment</option>
+              <option value="defense_strategy">Defense strategy</option>
+              <option value="compliance_optimization">Compliance optimization</option>
+            </select>
+          </label>
+          <label>
+            <span>Prompt</span>
+            <textarea name="prompt" rows="3" placeholder="Contract interpretation" required></textarea>
+          </label>
+          <label>
+            <span>Jurisdiction</span>
+            <input name="jurisdiction" value="US" />
+          </label>
+          <label>
+            <span>Optional JSON context</span>
+            <textarea name="context" rows="4" placeholder='{"industry":"healthcare"}'></textarea>
+          </label>
+          <button type="submit">Run analysis</button>
+        </form>
+        <pre id="analysis-result" class="result" aria-live="polite"></pre>
+      </section>
+    </main>
+
+    <script>
+      const printResult = (node, payload) => {
+        node.textContent = JSON.stringify(payload, null, 2);
+      };
+
+      const parseContext = (rawValue) => {
+        const trimmed = rawValue.trim();
+        if (!trimmed) return undefined;
+        return JSON.parse(trimmed);
+      };
+
+      const postJson = async (url, payload) => {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Request failed");
+        }
+
+        return data;
+      };
+
+      document.getElementById("search-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const result = document.getElementById("search-result");
+        result.textContent = "Loading...";
+
+        try {
+          const form = new FormData(event.currentTarget);
+          const data = await postJson("/api/search", {
+            query: form.get("query"),
+            matter_id: form.get("matter_id"),
+            top_k: Number(form.get("top_k") || 5),
+          });
+          printResult(result, data);
+        } catch (error) {
+          printResult(result, { error: error.message });
+        }
+      });
+
+      document.getElementById("analysis-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const result = document.getElementById("analysis-result");
+        result.textContent = "Loading...";
+
+        try {
+          const form = new FormData(event.currentTarget);
+          const data = await postJson("/api/analyze", {
+            analysis_type: form.get("analysis_type"),
+            prompt: form.get("prompt"),
+            jurisdiction: form.get("jurisdiction"),
+            context: parseContext(form.get("context") || ""),
+          });
+          printResult(result, data);
+        } catch (error) {
+          printResult(result, { error: error.message });
+        }
+      });
+
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js"));
+      }
+    </script>
+  </body>
+</html>

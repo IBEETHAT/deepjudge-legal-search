@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deepjudge-legal-search"
+version = "1.0.0"
+description = "DeepJudge legal search client with an installable mobile web app."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "python-dotenv>=1.0.0",
+  "requests>=2.31.0",
+  "urllib3>=2.0.0"
+]
+
+[project.scripts]
+deepjudge-legal-search-app = "deepjudge_client.__main__:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["deepjudge_client*"]
+
+[tool.setuptools.package-data]
+deepjudge_client = ["static/*", "static/icons/*"]

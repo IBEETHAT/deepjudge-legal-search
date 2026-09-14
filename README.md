@@ -1,51 +1,51 @@
 # DeepJudge Legal Search Client
 
-A production-ready Python client for DeepJudge legal knowledge search API with advanced features for legal research and analysis.
+A production-ready Python client for DeepJudge legal knowledge search API with an installable mobile web app for iPhones.
 
 ## Features
 
 ### Core Features
-- **Legal Grey Area Analysis** - Identify unsettled law and conflicting precedents
-- **Regulatory Loophole Identification** - Find legitimate gaps in regulations for compliance optimization
+- **Firm Knowledge Search** - Search legal knowledge with matter-aware filters
+- **Grey Area Analysis** - Identify unsettled law and conflicting precedents
 - **Risk Assessment** - Analyze potential legal exposure and consequences
 - **Defense Strategy Research** - Discover case law supporting legal defense arguments
 - **Compliance Optimization** - Structure activities within legal boundaries
 
-### Performance Features
-- **Intelligent Caching** - Redis-backed caching for repeated queries
-- **Automatic Retries** - Exponential backoff retry logic for failed requests
-- **Rate Limiting** - Built-in rate limit handling and throttling
-- **Batch Processing** - Efficiently process multiple queries in parallel
-- **Connection Pooling** - Optimized HTTP connection management
+### Mobile App Features
+- **Installable on iPhone** - Open in Safari and use Add to Home Screen
+- **PWA Assets** - Manifest, service worker, and iPhone app icon support
+- **Mobile-first UI** - Touch-friendly forms for search and analysis
+- **No API Key in the Browser** - Requests go through the Python backend
 
 ## Installation
 
 ```bash
 pip install -r requirements.txt
+pip install -e .
 ```
 
 ## Quick Start
 
+### Python client
+
 ```python
 from deepjudge_client import DeepJudgeClient
 
-# Initialize client
 client = DeepJudgeClient(api_key="your_enterprise_api_key")
-
-# Search firm knowledge
 results = client.search_firm_knowledge(
     query="indemnification clause precedent",
     matter_id="M-10294"
 )
-
-# Analyze grey areas
-from deepjudge_client import GreyAreaAnalyzer
-analyzer = GreyAreaAnalyzer(client)
-grey_areas = analyzer.analyze(
-    topic="contract interpretation",
-    jurisdiction="US"
-)
 ```
+
+### iPhone-ready web app
+
+```bash
+export DEEPJUDGE_API_KEY=your_enterprise_api_key
+python -m deepjudge_client --host 0.0.0.0 --port 8000
+```
+
+Then open the served URL in Safari on your iPhone and choose **Share → Add to Home Screen**. For the full installable PWA experience, serve it over HTTPS in production.
 
 ## Configuration
 
@@ -56,6 +56,12 @@ DEEPJUDGE_API_KEY=your_enterprise_api_key
 DEEPJUDGE_BASE_URL=https://api.deepjudge.ai/v1
 REQUEST_TIMEOUT=30
 MAX_RETRIES=3
+```
+
+## Running Tests
+
+```bash
+python -m unittest discover -s tests
 ```
 
 ## License

@@ -8,8 +8,14 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests
-from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency fallback
+    def load_dotenv():
+        return False
+
 from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)

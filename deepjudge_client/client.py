@@ -172,7 +172,7 @@ class DeepJudgeClient:
         payload = {
             "query": query,
             "top_k": top_k,
-            "filters": filters or {},
+            "filters": dict(filters or {}),
         }
 
         if matter_id:

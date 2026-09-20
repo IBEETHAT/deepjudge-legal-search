@@ -19,6 +19,11 @@ class StubClient:
         return {"ok": True, "payload": payload}
 
 
+class FailingClient(StubClient):
+    def search_firm_knowledge(self, **kwargs):
+        raise RuntimeError("upstream details should stay private")
+
+
 class DeepJudgeWebAppTests(unittest.TestCase):
     def _request(self, app, method, path, payload=None):
         body = b""
@@ -68,6 +73,65 @@ class DeepJudgeWebAppTests(unittest.TestCase):
         self.assertEqual(captured["status"], "400 Bad Request")
         payload = json.loads(body)
         self.assertIn("analysis_type", payload["error"])
+
+    def test_search_endpoint_rejects_invalid_query_type(self):
+        app = DeepJudgeWebApp(client=StubClient())
+
+        captured, body = self._request(app, "POST", "/api/search", {"query": 123})
+
+        self.assertEqual(captured["status"], "400 Bad Request")
+        self.assertEqual(json.loads(body)["error"], "query must be a string")
+
+    def test_search_endpoint_rejects_invalid_top_k(self):
+        app = DeepJudgeWebApp(client=StubClient())
+
+        captured, body = self._request(app, "POST", "/api/search", {"query": "x", "top_k": 0})
+
+        self.assertEqual(captured["status"], "400 Bad Request")
+        self.assertEqual(json.loads(body)["error"], "'top_k' must be an integer between 1 and 20.")
+
+    def test_search_endpoint_rejects_invalid_filters_type(self):
+        app = DeepJudgeWebApp(client=StubClient())
+
+        captured, body = self._request(app, "POST", "/api/search", {"query": "x", "filters": []})
+
+        self.assertEqual(captured["status"], "400 Bad Request")
+        self.assertEqual(json.loads(body)["error"], "filters must be a JSON object")
+
+    def test_analysis_endpoint_rejects_non_string_type(self):
+        app = DeepJudgeWebApp(client=StubClient())
+
+        captured, body = self._request(app, "POST", "/api/analyze", {"analysis_type": [], "prompt": "x"})
+
+        self.assertEqual(captured["status"], "400 Bad Request")
+        self.assertIn("analysis_type", json.loads(body)["error"])
+
+    def test_rejects_non_utf8_json_body(self):
+        app = DeepJudgeWebApp(client=StubClient())
+        environ = {
+            "REQUEST_METHOD": "POST",
+            "PATH_INFO": "/api/search",
+            "CONTENT_LENGTH": "1",
+            "wsgi.input": io.BytesIO(b"\x80"),
+        }
+        captured = {}
+
+        def start_response(status, headers):
+            captured["status"] = status
+            captured["headers"] = dict(headers)
+
+        body = b"".join(app(environ, start_response))
+
+        self.assertEqual(captured["status"], "400 Bad Request")
+        self.assertEqual(json.loads(body)["error"], "request body must be valid JSON")
+
+    def test_internal_errors_are_sanitized(self):
+        app = DeepJudgeWebApp(client=FailingClient())
+
+        captured, body = self._request(app, "POST", "/api/search", {"query": "indemnification"})
+
+        self.assertEqual(captured["status"], "500 Internal Server Error")
+        self.assertEqual(json.loads(body)["error"], "Internal server error")
 
 
 if __name__ == "__main__":

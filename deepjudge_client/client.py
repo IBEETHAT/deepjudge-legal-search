@@ -57,8 +57,8 @@ class DeepJudgeClient:
             raise ValueError("API key not provided and DEEPJUDGE_API_KEY not set")
 
         self.base_url = base_url or os.getenv("DEEPJUDGE_BASE_URL", "https://api.deepjudge.ai/v1")
-        self.timeout = int(timeout or os.getenv("REQUEST_TIMEOUT", "30"))
-        resolved_retries = int(max_retries or os.getenv("MAX_RETRIES", "3"))
+        self.timeout = int(timeout if timeout is not None else os.getenv("REQUEST_TIMEOUT", "30"))
+        resolved_retries = int(max_retries if max_retries is not None else os.getenv("MAX_RETRIES", "3"))
         self.session = self._create_session(resolved_retries, backoff_factor)
         self._request_history: List[Dict[str, Any]] = []
 

@@ -27,6 +27,10 @@ ANALYSIS_TYPES = {
 }
 
 
+class RequestValidationError(Exception):
+    """Raised when an incoming request payload is invalid."""
+
+
 @dataclass
 class Response:
     status: HTTPStatus
@@ -48,12 +52,12 @@ class DeepJudgeWebApp:
     ) -> Iterable[bytes]:
         try:
             response = self._dispatch(environ)
-        except ValueError as exc:
+        except RequestValidationError as exc:
             response = self._json_response({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
         except Exception as exc:  # pragma: no cover - defensive logging path
             logger.exception("Unhandled web app error")
             response = self._json_response(
-                {"error": str(exc) or "Internal server error"},
+                {"error": "Internal server error"},
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
 
@@ -84,13 +88,16 @@ class DeepJudgeWebApp:
 
     def _handle_search(self, environ: Dict[str, Any]) -> Dict[str, Any]:
         payload = self._read_json(environ)
-        query = (payload.get("query") or "").strip()
-        if not query:
-            raise ValueError("query is required")
+        query = self._require_string(payload, "query", required=True)
+        matter_id = self._optional_string(payload, "matter_id") or None
 
-        matter_id = (payload.get("matter_id") or "").strip() or None
-        top_k = int(payload.get("top_k") or 5)
-        filters = payload.get("filters") if isinstance(payload.get("filters"), dict) else None
+        top_k = payload.get("top_k", 5)
+        if isinstance(top_k, bool) or not isinstance(top_k, int) or not 1 <= top_k <= 20:
+            raise RequestValidationError("'top_k' must be an integer between 1 and 20.")
+
+        filters = payload.get("filters")
+        if filters is not None and not isinstance(filters, dict):
+            raise RequestValidationError("filters must be a JSON object")
 
         return self.client.search_firm_knowledge(
             query=query,
@@ -101,25 +108,30 @@ class DeepJudgeWebApp:
 
     def _handle_analysis(self, environ: Dict[str, Any]) -> Dict[str, Any]:
         payload = self._read_json(environ)
-        analysis_type = ANALYSIS_TYPES.get(payload.get("analysis_type"))
+        analysis_type_key = payload.get("analysis_type")
+        if not isinstance(analysis_type_key, str):
+            raise RequestValidationError(
+                "analysis_type must be one of: grey_area, risk_assessment, defense_strategy, compliance_optimization"
+            )
+        analysis_type = ANALYSIS_TYPES.get(analysis_type_key)
         if not analysis_type:
-            raise ValueError("analysis_type must be one of: grey_area, risk_assessment, defense_strategy, compliance_optimization")
+            raise RequestValidationError(
+                "analysis_type must be one of: grey_area, risk_assessment, defense_strategy, compliance_optimization"
+            )
 
-        prompt = (payload.get("prompt") or "").strip()
-        if not prompt:
-            raise ValueError("prompt is required")
+        prompt = self._require_string(payload, "prompt", required=True)
 
         request_payload: Dict[str, Any] = {"analysis_type": analysis_type}
 
         if analysis_type == "grey_area":
             request_payload["topic"] = prompt
-            request_payload["jurisdiction"] = (payload.get("jurisdiction") or "US").strip() or "US"
+            request_payload["jurisdiction"] = self._optional_string(payload, "jurisdiction") or "US"
         elif analysis_type == "risk_assessment":
             request_payload["scenario"] = prompt
             request_payload["context"] = self._coerce_context(payload.get("context"))
         elif analysis_type == "defense_strategy":
             request_payload["charge_or_claim"] = prompt
-            request_payload["jurisdiction"] = (payload.get("jurisdiction") or "US").strip() or "US"
+            request_payload["jurisdiction"] = self._optional_string(payload, "jurisdiction") or "US"
         else:
             request_payload["activity"] = prompt
             request_payload["context"] = self._coerce_context(payload.get("context"))
@@ -138,11 +150,11 @@ class DeepJudgeWebApp:
 
         try:
             data = json.loads(raw_body.decode("utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ValueError("request body must be valid JSON") from exc
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise RequestValidationError("request body must be valid JSON") from exc
 
         if not isinstance(data, dict):
-            raise ValueError("request body must be a JSON object")
+            raise RequestValidationError("request body must be a JSON object")
 
         return data
 
@@ -169,11 +181,30 @@ class DeepJudgeWebApp:
             return {}
         if isinstance(value, dict):
             return value
-        raise ValueError("context must be a JSON object")
+        raise RequestValidationError("context must be a JSON object")
+
+    @staticmethod
+    def _require_string(payload: Dict[str, Any], field: str, *, required: bool = False) -> str:
+        value = payload.get(field)
+        if value is None:
+            if required:
+                raise RequestValidationError(f"{field} is required")
+            return ""
+        if not isinstance(value, str):
+            raise RequestValidationError(f"{field} must be a string")
+
+        value = value.strip()
+        if required and not value:
+            raise RequestValidationError(f"{field} is required")
+        return value
+
+    @classmethod
+    def _optional_string(cls, payload: Dict[str, Any], field: str) -> str:
+        return cls._require_string(payload, field, required=False)
 
 
-def run(host: str = "0.0.0.0", port: int = 8000) -> None:
-    """Run the mobile web app."""
+def run(host: str = "127.0.0.1", port: int = 8000) -> None:
+    """Run the mobile web app with the built-in development server."""
     app = DeepJudgeWebApp()
     with make_server(host, port, app) as httpd:
         logger.info("DeepJudge mobile web app running at http://%s:%s", host, port)

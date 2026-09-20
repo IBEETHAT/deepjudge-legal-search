@@ -10,6 +10,11 @@ class DeepJudgeClientTests(unittest.TestCase):
         self.assertTrue(client.headers["Authorization"].startswith("Bearer "))
         self.assertTrue(client.headers["Authorization"].endswith("secret-key"))
 
+    def test_explicit_zero_max_retries_is_preserved(self):
+        client = DeepJudgeClient(api_key="secret-key", max_retries=0)
+
+        self.assertEqual(client.session.get_adapter("https://").max_retries.total, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

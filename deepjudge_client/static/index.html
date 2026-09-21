@@ -18,6 +18,7 @@
         <p class="eyebrow">DeepJudge</p>
         <h1>Legal search on your iPhone</h1>
         <p class="subtitle">Open this app in Safari, then use Share → Add to Home Screen to install it like an app.</p>
+        <p class="subtitle">For iPhone access on your local network, start the server with <code>--host 0.0.0.0</code>. Full PWA features require HTTPS.</p>
       </header>
 
       <section class="panel">
@@ -135,7 +136,7 @@
         }
       });
 
-      if ("serviceWorker" in navigator) {
+      if ("serviceWorker" in navigator && (window.isSecureContext || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
         window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js"));
       }
     </script>

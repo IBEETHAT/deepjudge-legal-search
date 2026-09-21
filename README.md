@@ -45,7 +45,9 @@ export DEEPJUDGE_API_KEY=your_enterprise_api_key
 python -m deepjudge_client --host 0.0.0.0 --port 8000
 ```
 
-Then open the served URL in Safari on your iPhone and choose **Share → Add to Home Screen**. For the full installable PWA experience, serve it over HTTPS in production.
+By default, `python -m deepjudge_client` binds to `127.0.0.1`; only use `--host 0.0.0.0` on a trusted local network when you need to open the app from your iPhone.
+
+Then open the served URL in Safari on your iPhone and choose **Share → Add to Home Screen**. On a trusted local network, use `--host 0.0.0.0` so your iPhone can reach the app. The built-in server is intended for development and local testing only; for production, deploy the WSGI app behind a production-grade WSGI server and HTTPS reverse proxy because full PWA features require HTTPS.
 
 ## Configuration
 

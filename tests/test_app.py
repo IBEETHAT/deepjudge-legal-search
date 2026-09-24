@@ -19,6 +19,11 @@ class StubClient:
         return {"ok": True, "payload": payload}
 
 
+class ErrorClient(StubClient):
+    def search_firm_knowledge(self, **kwargs):
+        raise RuntimeError("sensitive internal failure details")
+
+
 class DeepJudgeWebAppTests(unittest.TestCase):
     def _request(self, app, method, path, payload=None):
         body = b""
@@ -68,6 +73,49 @@ class DeepJudgeWebAppTests(unittest.TestCase):
         self.assertEqual(captured["status"], "400 Bad Request")
         payload = json.loads(body)
         self.assertIn("analysis_type", payload["error"])
+
+    def test_search_validation_rejects_invalid_types(self):
+        app = DeepJudgeWebApp(client=StubClient())
+
+        captured, _ = self._request(app, "POST", "/api/search", {"query": 123})
+        self.assertEqual(captured["status"], "400 Bad Request")
+
+        captured, _ = self._request(app, "POST", "/api/search", {"query": "ok", "top_k": "3"})
+        self.assertEqual(captured["status"], "400 Bad Request")
+
+        captured, _ = self._request(app, "POST", "/api/search", {"query": "ok", "top_k": 0})
+        self.assertEqual(captured["status"], "400 Bad Request")
+
+        captured, _ = self._request(app, "POST", "/api/search", {"query": "ok", "filters": []})
+        self.assertEqual(captured["status"], "400 Bad Request")
+
+    def test_analysis_validation_rejects_non_string_prompt(self):
+        app = DeepJudgeWebApp(client=StubClient())
+
+        captured, _ = self._request(
+            app,
+            "POST",
+            "/api/analyze",
+            {"analysis_type": "grey_area", "prompt": 1},
+        )
+        self.assertEqual(captured["status"], "400 Bad Request")
+
+        captured, _ = self._request(
+            app,
+            "POST",
+            "/api/analyze",
+            {"analysis_type": "grey_area", "prompt": "topic", "jurisdiction": 1},
+        )
+        self.assertEqual(captured["status"], "400 Bad Request")
+
+    def test_internal_errors_do_not_leak_details(self):
+        app = DeepJudgeWebApp(client=ErrorClient())
+
+        captured, body = self._request(app, "POST", "/api/search", {"query": "ok"})
+
+        self.assertEqual(captured["status"], "500 Internal Server Error")
+        payload = json.loads(body)
+        self.assertEqual(payload["error"], "Internal server error")
 
 
 if __name__ == "__main__":

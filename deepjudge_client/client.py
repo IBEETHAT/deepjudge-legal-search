@@ -58,7 +58,7 @@ class DeepJudgeClient:
 
         self.base_url = base_url or os.getenv("DEEPJUDGE_BASE_URL", "https://api.deepjudge.ai/v1")
         self.timeout = int(timeout or os.getenv("REQUEST_TIMEOUT", "30"))
-        resolved_retries = int(max_retries or os.getenv("MAX_RETRIES", "3"))
+        resolved_retries = int(os.getenv("MAX_RETRIES", "3")) if max_retries is None else int(max_retries)
         self.session = self._create_session(resolved_retries, backoff_factor)
         self._request_history: List[Dict[str, Any]] = []
 

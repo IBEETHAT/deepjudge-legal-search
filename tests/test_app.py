@@ -69,6 +69,31 @@ class DeepJudgeWebAppTests(unittest.TestCase):
         payload = json.loads(body)
         self.assertIn("analysis_type", payload["error"])
 
+    def test_regulatory_loophole_analysis_maps_prompt_to_regulation(self):
+        client = StubClient()
+        app = DeepJudgeWebApp(client=client)
+
+        captured, _ = self._request(
+            app,
+            "POST",
+            "/api/analyze",
+            {"analysis_type": "regulatory_loopholes", "prompt": "SEC Rule 10b-5", "context": {"industry": "finance"}},
+        )
+
+        self.assertEqual(captured["status"], "200 OK")
+        self.assertEqual(
+            client.analysis_calls[0],
+            (
+                "POST",
+                "/analyze",
+                {
+                    "analysis_type": "regulatory_loopholes",
+                    "regulation": "SEC Rule 10b-5",
+                    "context": {"industry": "finance"},
+                },
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -83,6 +83,16 @@ class DeepJudgeWebAppTests(unittest.TestCase):
         payload = json.loads(body)
         self.assertIn("analysis_type", payload["error"])
 
+    def test_analysis_endpoint_accepts_case_variants(self):
+        app = DeepJudgeWebApp(client=StubClient())
+
+        captured, body = self._request(app, "POST", "/api/analyze", {"analysis_type": "GREY_AREA", "prompt": "x"})
+
+        self.assertEqual(captured["status"], "200 OK")
+        payload = json.loads(body)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["payload"]["analysis_type"], "grey_area")
+
     def test_search_validation_rejects_invalid_types(self):
         app = DeepJudgeWebApp(client=StubClient())
 
@@ -134,6 +144,44 @@ class DeepJudgeWebAppTests(unittest.TestCase):
         self.assertEqual(captured["status"], "400 Bad Request")
         payload = json.loads(body)
         self.assertEqual(payload["error"], "request body must be valid JSON")
+
+    def test_search_parses_json_without_content_length(self):
+        app = DeepJudgeWebApp(client=StubClient())
+        body = json.dumps({"query": "indemnification"}).encode("utf-8")
+        environ = {
+            "REQUEST_METHOD": "POST",
+            "PATH_INFO": "/api/search",
+            "wsgi.input": io.BytesIO(body),
+        }
+        captured = {}
+
+        def start_response(status, headers):
+            captured["status"] = status
+            captured["headers"] = dict(headers)
+
+        response_body = b"".join(app(environ, start_response))
+        payload = json.loads(response_body)
+        self.assertEqual(captured["status"], "200 OK")
+        self.assertEqual(payload["query"], "indemnification")
+
+    def test_search_rejects_invalid_content_length(self):
+        app = DeepJudgeWebApp(client=StubClient())
+        environ = {
+            "REQUEST_METHOD": "POST",
+            "PATH_INFO": "/api/search",
+            "CONTENT_LENGTH": "abc",
+            "wsgi.input": io.BytesIO(b"{}"),
+        }
+        captured = {}
+
+        def start_response(status, headers):
+            captured["status"] = status
+            captured["headers"] = dict(headers)
+
+        response_body = b"".join(app(environ, start_response))
+        payload = json.loads(response_body)
+        self.assertEqual(captured["status"], "400 Bad Request")
+        self.assertIn("CONTENT_LENGTH", payload["error"])
 
 
 if __name__ == "__main__":

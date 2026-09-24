@@ -104,7 +104,7 @@ class DeepJudgeWebApp:
 
     def _handle_analysis(self, environ: Dict[str, Any]) -> Dict[str, Any]:
         payload = self._read_json(environ)
-        analysis_type_key = self._coerce_string(payload.get("analysis_type"), "analysis_type", required=True)
+        analysis_type_key = self._coerce_string(payload.get("analysis_type"), "analysis_type", required=True).lower()
         analysis_type = ANALYSIS_TYPES.get(analysis_type_key)
         if not analysis_type:
             raise ValueError("analysis_type must be one of: grey_area, risk_assessment, defense_strategy, compliance_optimization")
@@ -129,17 +129,36 @@ class DeepJudgeWebApp:
         return self.client._make_request("POST", "/analyze", request_payload)
 
     def _read_json(self, environ: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            length = int(environ.get("CONTENT_LENGTH") or 0)
-        except (TypeError, ValueError):
-            length = 0
+        body_stream = environ.get("wsgi.input")
+        if body_stream is None:
+            return {}
 
-        raw_body = environ["wsgi.input"].read(length) if length > 0 else b""
-        if not raw_body:
+        content_length = environ.get("CONTENT_LENGTH")
+        if content_length in (None, ""):
+            raw_body = body_stream.read()
+        else:
+            try:
+                length = int(content_length)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("CONTENT_LENGTH must be an integer") from exc
+
+            if length < 0:
+                raise ValueError("CONTENT_LENGTH must be non-negative")
+
+            raw_body = body_stream.read(length) if length > 0 else b""
+
+        try:
+            if not isinstance(raw_body, (bytes, bytearray)):
+                raise ValueError("request body must be bytes")
+            raw_body_bytes = bytes(raw_body)
+        except TypeError as exc:
+            raise ValueError("request body must be bytes") from exc
+
+        if not raw_body_bytes:
             return {}
 
         try:
-            data = json.loads(raw_body.decode("utf-8"))
+            data = json.loads(raw_body_bytes.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ValueError("request body must be valid JSON") from exc
 

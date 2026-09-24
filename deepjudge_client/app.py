@@ -104,7 +104,8 @@ class DeepJudgeWebApp:
 
     def _handle_analysis(self, environ: Dict[str, Any]) -> Dict[str, Any]:
         payload = self._read_json(environ)
-        analysis_type = ANALYSIS_TYPES.get(payload.get("analysis_type"))
+        analysis_type_key = self._coerce_string(payload.get("analysis_type"), "analysis_type", required=True)
+        analysis_type = ANALYSIS_TYPES.get(analysis_type_key)
         if not analysis_type:
             raise ValueError("analysis_type must be one of: grey_area, risk_assessment, defense_strategy, compliance_optimization")
 
@@ -139,7 +140,7 @@ class DeepJudgeWebApp:
 
         try:
             data = json.loads(raw_body.decode("utf-8"))
-        except json.JSONDecodeError as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ValueError("request body must be valid JSON") from exc
 
         if not isinstance(data, dict):

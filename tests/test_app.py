@@ -26,10 +26,10 @@ class ErrorClient(StubClient):
 
 class DeepJudgeWebAppTests(unittest.TestCase):
     def _request(self, app, method, path, payload=None):
-        body = b""
-        if payload is not None:
-            body = json.dumps(payload).encode("utf-8")
+        body = b"" if payload is None else json.dumps(payload).encode("utf-8")
+        return self._request_raw_body(app, method, path, body)
 
+    def _request_raw_body(self, app, method, path, body):
         environ = {
             "REQUEST_METHOD": method,
             "PATH_INFO": path,
@@ -69,6 +69,15 @@ class DeepJudgeWebAppTests(unittest.TestCase):
         app = DeepJudgeWebApp(client=StubClient())
 
         captured, body = self._request(app, "POST", "/api/analyze", {"analysis_type": "bad", "prompt": "x"})
+
+        self.assertEqual(captured["status"], "400 Bad Request")
+        payload = json.loads(body)
+        self.assertIn("analysis_type", payload["error"])
+
+    def test_analysis_endpoint_rejects_non_string_analysis_type(self):
+        app = DeepJudgeWebApp(client=StubClient())
+
+        captured, body = self._request(app, "POST", "/api/analyze", {"analysis_type": [], "prompt": "x"})
 
         self.assertEqual(captured["status"], "400 Bad Request")
         payload = json.loads(body)
@@ -116,6 +125,15 @@ class DeepJudgeWebAppTests(unittest.TestCase):
         self.assertEqual(captured["status"], "500 Internal Server Error")
         payload = json.loads(body)
         self.assertEqual(payload["error"], "Internal server error")
+
+    def test_search_rejects_invalid_utf8_json(self):
+        app = DeepJudgeWebApp(client=StubClient())
+
+        captured, body = self._request_raw_body(app, "POST", "/api/search", b"\xff\xfe\xfd")
+
+        self.assertEqual(captured["status"], "400 Bad Request")
+        payload = json.loads(body)
+        self.assertEqual(payload["error"], "request body must be valid JSON")
 
 
 if __name__ == "__main__":

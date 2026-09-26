@@ -24,6 +24,11 @@ class ErrorClient(StubClient):
         raise RuntimeError("sensitive internal failure details")
 
 
+class ValueErrorClient(StubClient):
+    def search_firm_knowledge(self, **kwargs):
+        raise ValueError("upstream value error")
+
+
 class DeepJudgeWebAppTests(unittest.TestCase):
     def _request(self, app, method, path, payload=None):
         body = b""
@@ -74,6 +79,13 @@ class DeepJudgeWebAppTests(unittest.TestCase):
         payload = json.loads(body)
         self.assertIn("analysis_type", payload["error"])
 
+    def test_analysis_validation_rejects_non_string_analysis_type(self):
+        app = DeepJudgeWebApp(client=StubClient())
+
+        captured, _ = self._request(app, "POST", "/api/analyze", {"analysis_type": ["grey_area"], "prompt": "x"})
+
+        self.assertEqual(captured["status"], "400 Bad Request")
+
     def test_search_validation_rejects_invalid_types(self):
         app = DeepJudgeWebApp(client=StubClient())
 
@@ -116,6 +128,32 @@ class DeepJudgeWebAppTests(unittest.TestCase):
         self.assertEqual(captured["status"], "500 Internal Server Error")
         payload = json.loads(body)
         self.assertEqual(payload["error"], "Internal server error")
+
+    def test_downstream_value_errors_are_internal_errors(self):
+        app = DeepJudgeWebApp(client=ValueErrorClient())
+
+        captured, body = self._request(app, "POST", "/api/search", {"query": "ok"})
+
+        self.assertEqual(captured["status"], "500 Internal Server Error")
+        payload = json.loads(body)
+        self.assertEqual(payload["error"], "Internal server error")
+
+    def test_non_utf8_payload_returns_bad_request(self):
+        app = DeepJudgeWebApp(client=StubClient())
+        environ = {
+            "REQUEST_METHOD": "POST",
+            "PATH_INFO": "/api/search",
+            "CONTENT_LENGTH": "3",
+            "wsgi.input": io.BytesIO(b"\xff\xfe\xfd"),
+        }
+        captured = {}
+
+        def start_response(status, headers):
+            captured["status"] = status
+            captured["headers"] = dict(headers)
+
+        _ = b"".join(app(environ, start_response))
+        self.assertEqual(captured["status"], "400 Bad Request")
 
 
 if __name__ == "__main__":

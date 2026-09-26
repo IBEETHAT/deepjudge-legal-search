@@ -35,6 +35,10 @@ class Response:
     headers: Optional[Iterable[Tuple[str, str]]] = None
 
 
+class RequestValidationError(ValueError):
+    """Raised when a request payload fails validation."""
+
+
 class DeepJudgeWebApp:
     """Simple WSGI app for the installable mobile interface."""
 
@@ -48,7 +52,7 @@ class DeepJudgeWebApp:
     ) -> Iterable[bytes]:
         try:
             response = self._dispatch(environ)
-        except ValueError as exc:
+        except RequestValidationError as exc:
             response = self._json_response({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
         except Exception:  # pragma: no cover - defensive logging path
             logger.exception("Unhandled web app error")
@@ -89,10 +93,10 @@ class DeepJudgeWebApp:
 
         top_k = payload.get("top_k", 5)
         if isinstance(top_k, bool) or not isinstance(top_k, int) or not 1 <= top_k <= 20:
-            raise ValueError("'top_k' must be an integer between 1 and 20.")
+            raise RequestValidationError("'top_k' must be an integer between 1 and 20.")
 
         if "filters" in payload and payload["filters"] is not None and not isinstance(payload["filters"], dict):
-            raise ValueError("filters must be a JSON object")
+            raise RequestValidationError("filters must be a JSON object")
         filters = payload.get("filters")
 
         return self.client.search_firm_knowledge(
@@ -104,9 +108,13 @@ class DeepJudgeWebApp:
 
     def _handle_analysis(self, environ: Dict[str, Any]) -> Dict[str, Any]:
         payload = self._read_json(environ)
-        analysis_type = ANALYSIS_TYPES.get(payload.get("analysis_type"))
+        raw_analysis_type = payload.get("analysis_type")
+        if not isinstance(raw_analysis_type, str):
+            raise RequestValidationError("analysis_type must be one of: grey_area, risk_assessment, defense_strategy, compliance_optimization")
+
+        analysis_type = ANALYSIS_TYPES.get(raw_analysis_type)
         if not analysis_type:
-            raise ValueError("analysis_type must be one of: grey_area, risk_assessment, defense_strategy, compliance_optimization")
+            raise RequestValidationError("analysis_type must be one of: grey_area, risk_assessment, defense_strategy, compliance_optimization")
 
         prompt = self._coerce_string(payload.get("prompt"), "prompt", required=True)
 
@@ -139,11 +147,11 @@ class DeepJudgeWebApp:
 
         try:
             data = json.loads(raw_body.decode("utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ValueError("request body must be valid JSON") from exc
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise RequestValidationError("request body must be valid JSON") from exc
 
         if not isinstance(data, dict):
-            raise ValueError("request body must be a JSON object")
+            raise RequestValidationError("request body must be a JSON object")
 
         return data
 
@@ -170,7 +178,7 @@ class DeepJudgeWebApp:
             return {}
         if isinstance(value, dict):
             return value
-        raise ValueError("context must be a JSON object")
+        raise RequestValidationError("context must be a JSON object")
 
     @staticmethod
     def _coerce_string(
@@ -181,15 +189,15 @@ class DeepJudgeWebApp:
     ) -> Optional[str]:
         if value is None:
             if required:
-                raise ValueError(f"{field_name} is required")
+                raise RequestValidationError(f"{field_name} is required")
             return default
 
         if not isinstance(value, str):
-            raise ValueError(f"{field_name} must be a string")
+            raise RequestValidationError(f"{field_name} must be a string")
 
         cleaned_value = value.strip()
         if required and not cleaned_value:
-            raise ValueError(f"{field_name} is required")
+            raise RequestValidationError(f"{field_name} is required")
 
         if not cleaned_value:
             return default
@@ -197,7 +205,7 @@ class DeepJudgeWebApp:
         return cleaned_value
 
 
-def run(host: str = "0.0.0.0", port: int = 8000) -> None:
+def run(host: str = "127.0.0.1", port: int = 8000) -> None:
     """Run the mobile web app."""
     app = DeepJudgeWebApp()
     with make_server(host, port, app) as httpd:

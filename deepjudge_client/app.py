@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 STATIC_PACKAGE = "deepjudge_client.static"
 ANALYSIS_TYPES = {
     "grey_area": "grey_area",
+    "regulatory_loopholes": "regulatory_loopholes",
     "risk_assessment": "risk_assessment",
     "defense_strategy": "defense_strategy",
     "compliance_optimization": "compliance_optimization",
@@ -107,7 +108,9 @@ class DeepJudgeWebApp:
         analysis_type_key = self._coerce_string(payload.get("analysis_type"), "analysis_type", required=True)
         analysis_type = ANALYSIS_TYPES.get(analysis_type_key)
         if not analysis_type:
-            raise ValueError("analysis_type must be one of: grey_area, risk_assessment, defense_strategy, compliance_optimization")
+            raise ValueError(
+                "analysis_type must be one of: grey_area, regulatory_loopholes, risk_assessment, defense_strategy, compliance_optimization"
+            )
 
         prompt = self._coerce_string(payload.get("prompt"), "prompt", required=True)
 
@@ -116,6 +119,9 @@ class DeepJudgeWebApp:
         if analysis_type == "grey_area":
             request_payload["topic"] = prompt
             request_payload["jurisdiction"] = self._coerce_string(payload.get("jurisdiction"), "jurisdiction", default="US")
+        elif analysis_type == "regulatory_loopholes":
+            request_payload["regulation"] = prompt
+            request_payload["context"] = self._coerce_context(payload.get("context"))
         elif analysis_type == "risk_assessment":
             request_payload["scenario"] = prompt
             request_payload["context"] = self._coerce_context(payload.get("context"))

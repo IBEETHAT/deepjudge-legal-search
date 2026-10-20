@@ -7,6 +7,7 @@ A production-ready Python client for DeepJudge legal knowledge search API with a
 ### Core Features
 - **Firm Knowledge Search** - Search legal knowledge with matter-aware filters
 - **Grey Area Analysis** - Identify unsettled law and conflicting precedents
+- **Regulatory Loophole Identification** - Find legitimate gaps in regulations for compliance optimization
 - **Risk Assessment** - Analyze potential legal exposure and consequences
 - **Defense Strategy Research** - Discover case law supporting legal defense arguments
 - **Compliance Optimization** - Structure activities within legal boundaries
